@@ -83,8 +83,38 @@ Request: **`GET /products`** — the browser loads the product list.
 
 ## c. Environment gotchas
 
-_TODO_
+Setup: Windows 11, Docker 29.7.2, Docker Compose v5.4.0.
+Steps: `cp .env.example .env`, then `docker compose up --build`.
+
+Nothing blocked the system from starting: all six containers came up, the
+migration runner exited with code 0, and `GET /products`, `/users` and
+`/orders` all return `200`. First build took around 6-7 minutes. Later restart was for 10-15 second going through all services. 
 
 ## d. One thing the documentation gets wrong or leaves out
 
-_TODO_
+**What the documentation says** - `ARCHITECTURE.md:47`, about the Products
+Service:
+
+> **Role**: Manages product catalog (CRUD operations).
+
+Statement is not true, since the Products Service can only **read**. It has two
+routes, both `GET`:
+
+- `products-service/public/index.php:21` - `GET /` returns
+  `{"message": "Products Service is running"}`.
+- `products-service/public/index.php:26` - `GET /products` runs
+  `SELECT * FROM "Product"` and returns every product.
+
+There is no `POST`, `PUT`/`PATCH` or `DELETE` route, so nothing can be
+created, updated or deleted through the API. The only thing that writes to the
+`"Product"` table is the Prisma seed (`database/prisma/seed.ts`), run by
+`migration-runner`. The CORS header at `index.php:18` allows
+`GET, POST, PUT, DELETE, PATCH, OPTIONS`, which makes it look like CRUD exists,
+but those methods have no routes behind them. Trying out POST `http://localhost:8082/products` request in postman I am getting `HTTP 405 Method Not Allowed`.
+
+The same thing about Users Service. It states: "Handles user registration and authentication", but
+`users-service/main.py:35` only has `GET /users`. The module contract states it
+directly: "Each service exposes one read-only endpoint ... Nothing creates,
+edits or deletes data yet" (`docs/modules/module-01.md`).
+
+Both are explaining roles of services, if we consider as a future role, it might be valid, however, if it is a current state of the system, then both statements may be considered misleadings.
